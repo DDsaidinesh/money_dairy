@@ -1,151 +1,74 @@
-import React from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { useIsMobile } from '@/hooks/use-mobile';
-import { Menu, LogIn, UserPlus, LogOut, Wallet } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
+import { useNavigate } from 'react-router-dom';
+import { LogOut, User, Settings, IndianRupee } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
+import { useProfile } from '@/hooks/use-profile';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { cn } from '@/lib/utils';
-import { useAuth } from '@/contexts/AuthContext';
+} from '@/components/ui/dropdown-menu';
+import { Button } from '@/components/ui/button';
 
-const Header: React.FC = () => {
-  const isMobile = useIsMobile();
-  const location = useLocation();
+export default function Header() {
+  const { user, logout } = useAuth();
+  const { data: profile } = useProfile();
   const navigate = useNavigate();
-  const { isAuthenticated, userEmail, logout } = useAuth();
 
-  const authenticatedNavItems = [
-    { label: 'Dashboard', href: '/dashboard' },
-    { label: 'Accounts', href: '/accounts' },
-    { label: 'Transactions', href: '/transactions' },
-    { label: 'Analytics', href: '/analytics' },
-  ];
+  const initials = (profile?.name || user?.email || 'U')
+    .split(' ')
+    .map((s) => s[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2);
 
-  const unauthenticatedNavItems = [
-    { label: 'Login', href: '/login', icon: <LogIn className="mr-2 h-4 w-4" /> },
-    { label: 'Register', href: '/register', icon: <UserPlus className="mr-2 h-4 w-4" /> },
-  ];
-
-  const navItems = isAuthenticated ? authenticatedNavItems : [];
+  const handleLogout = async () => {
+    await logout();
+    navigate('/login');
+  };
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="container flex h-16 items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Wallet className="h-6 w-6 text-blue-500" />
-          <h1 className="text-xl font-bold text-blue-500">
-            <Link to="/">MoneyFlow</Link>
-          </h1>
+    <header className="flex h-14 shrink-0 items-center justify-between border-b bg-card px-4">
+      <div className="flex items-center gap-2 md:hidden">
+        <div className="flex h-7 w-7 items-center justify-center rounded-md bg-primary text-primary-foreground">
+          <IndianRupee className="h-3.5 w-3.5" />
         </div>
-
-        {isMobile ? (
-          <Sheet>
-            <SheetTrigger asChild>
-              <Button variant="outline" size="icon">
-                <Menu className="h-5 w-5" />
-                <span className="sr-only">Toggle navigation menu</span>
-              </Button>
-            </SheetTrigger>
-            <SheetContent side="right">
-              <nav className="flex flex-col gap-4 mt-8">
-                {isAuthenticated ? (
-                  <>
-                    {navItems.map((item) => (
-                      <Link
-                        key={item.href}
-                        to={item.href}
-                        className={cn(
-                          "text-lg font-medium transition-colors hover:text-primary",
-                          location.pathname === item.href && "text-primary font-semibold"
-                        )}
-                      >
-                        {item.label}
-                      </Link>
-                    ))}
-                    <Button 
-                      variant="ghost" 
-                      className="justify-start p-2 mt-4" 
-                      onClick={logout}
-                    >
-                      <LogOut className="mr-2 h-4 w-4" /> Logout
-                    </Button>
-                  </>
-                ) : (
-                  <>
-                    {unauthenticatedNavItems.map((item) => (
-                      <Link
-                        key={item.href}
-                        to={item.href}
-                        className="flex items-center text-lg font-medium transition-colors hover:text-primary"
-                      >
-                        {item.icon} {item.label}
-                      </Link>
-                    ))}
-                  </>
-                )}
-              </nav>
-            </SheetContent>
-          </Sheet>
-        ) : (
-          <div className="flex items-center gap-6">
-            <nav className="flex items-center gap-6">
-              {navItems.map((item) => (
-                <Link
-                  key={item.href}
-                  to={item.href}
-                  className={cn(
-                    "text-sm font-medium transition-colors hover:text-primary",
-                    location.pathname === item.href && "text-primary font-semibold"
-                  )}
-                >
-                  {item.label}
-                </Link>
-              ))}
-            </nav>
-
-            {isAuthenticated ? (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" className="ml-4">
-                    {userEmail?.split('@')[0] || 'Account'}
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuLabel>My Account</DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => navigate('/dashboard')}>
-                    Dashboard
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => navigate('/accounts')}>
-                    Accounts
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={logout} className="text-red-500">
-                    <LogOut className="mr-2 h-4 w-4" /> Logout
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            ) : (
-              <div className="flex items-center gap-4">
-                <Button variant="ghost" onClick={() => navigate('/login')}>
-                  <LogIn className="mr-2 h-4 w-4" /> Login
-                </Button>
-                <Button onClick={() => navigate('/register')}>
-                  <UserPlus className="mr-2 h-4 w-4" /> Register
-                </Button>
-              </div>
-            )}
-          </div>
-        )}
+        <span className="font-semibold text-sm">Money Tracker</span>
       </div>
+
+      <div className="hidden md:block" />
+
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="icon" className="rounded-full">
+            <Avatar className="h-8 w-8">
+              <AvatarFallback className="text-xs bg-primary/10 text-primary">{initials}</AvatarFallback>
+            </Avatar>
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-48">
+          <div className="px-2 py-1.5">
+            <p className="text-sm font-medium">{profile?.name || 'User'}</p>
+            <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
+          </div>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={() => navigate('/settings')}>
+            <Settings className="mr-2 h-4 w-4" />
+            Settings
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => navigate('/accounts')}>
+            <User className="mr-2 h-4 w-4" />
+            Accounts
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={handleLogout} className="text-destructive focus:text-destructive">
+            <LogOut className="mr-2 h-4 w-4" />
+            Log out
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </header>
   );
-};
-
-export default Header;
+}

@@ -1,471 +1,297 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Plus, Edit2, Trash2, TrendingUp, TrendingDown, Wallet, CreditCard, Building, Landmark, PiggyBank } from 'lucide-react';
-import { useMoneyFlow } from '@/contexts/MoneyFlowContext';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { toast } from 'sonner';
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-  DialogFooter,
-} from '@/components/ui/dialog';
+  Plus, Star, Trash2, Pencil, Loader2, Wallet,
+  ArrowLeftRight,
+} from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Card, CardContent } from '@/components/ui/card';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+  Dialog, DialogContent, DialogHeader, DialogTitle,
+} from '@/components/ui/dialog';
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
-import { useToast } from '@/components/ui/use-toast';
-import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/contexts/AuthContext';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel,
+  AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
+  AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
+import {
+  useAccounts, useAddAccount, useUpdateAccount, useDeleteAccount, useTotalBalance,
+} from '@/hooks/use-accounts';
+import { useAddTransaction } from '@/hooks/use-transactions';
+import { formatCurrency, cn, toDateInputValue } from '@/lib/utils';
+import { ACCOUNT_TYPE_META } from '@/lib/constants';
+import PageHeader from '@/components/shared/PageHeader';
+import EmptyState from '@/components/shared/EmptyState';
+import type { AccountType } from '@/types';
 
-// Define account types that match your database
-type AccountType = 'checking' | 'savings' | 'investment' | 'credit' | 'loan' | 'cash' | 'wallet';
-
-interface NewAccountData {
-  name: string;
-  type: AccountType;
-  initial_balance: number;
-  currency: string;
-  description?: string;
-  color?: string;
-  account_number?: string;
-}
-
-// DB account type shape
-interface DBAccountType {
-  id: string;
-  name: string;
-  category: 'asset' | 'liability' | 'equity';
-  is_system?: boolean;
-}
-
-// Validation schema for new account input
-const newAccountSchema = z.object({
-  name: z.string().trim().min(1, { message: 'Account name is required' }).max(100),
-  type: z.enum(['checking','savings','investment','credit','loan','cash','wallet']),
-  initial_balance: z.number().min(-1000000000).max(1000000000),
-  currency: z.string().trim().min(1).max(10),
-  description: z.string().trim().max(200).optional().or(z.literal('')),
-  color: z.string().trim().max(20).optional(),
-  account_number: z.string().trim().max(20).optional(),
+const accountSchema = z.object({
+  name: z.string().min(1, 'Account name is required'),
+  type: z.string().min(1, 'Select an account type'),
+  initial_balance: z.coerce.number().min(0, 'Balance cannot be negative'),
 });
 
-const Accounts: React.FC = () => {
-  const { toast } = useToast();
-  const { user } = useAuth();
-  const { accounts, defaultAccount } = useMoneyFlow();
-const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
-const [newAccount, setNewAccount] = useState<NewAccountData>({
-  name: '',
-  type: 'checking',
-  initial_balance: 0,
-  currency: 'INR',
-  description: '',
-  color: '#2196f3',
+const transferSchema = z.object({
+  from_account_id: z.string().min(1),
+  to_account_id: z.string().min(1),
+  amount: z.coerce.number().positive('Amount must be greater than 0'),
+  description: z.string().optional(),
+}).refine((d) => d.from_account_id !== d.to_account_id, {
+  message: 'Source and destination must be different',
+  path: ['to_account_id'],
 });
-const [accountTypes, setAccountTypes] = useState<DBAccountType[]>([]);
 
-React.useEffect(() => {
-  const loadTypes = async () => {
-    if (!user) { setAccountTypes([]); return; }
-    const { data, error } = await supabase
-      .from('account_types')
-      .select('id,name,category,is_system')
-      .or(`is_system.eq.true,user_id.eq.${user.id}`)
-      .order('is_system', { ascending: false })
-      .order('name');
-    if (!error && data) setAccountTypes(data as DBAccountType[]);
-  };
-  loadTypes();
-}, [user]);
+export default function Accounts() {
+  const { data: accounts = [], isLoading } = useAccounts();
+  const totalBalance = useTotalBalance();
+  const addMutation = useAddAccount();
+  const updateMutation = useUpdateAccount();
+  const deleteMutation = useDeleteAccount();
+  const transferMutation = useAddTransaction();
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-IN', {
-      style: 'currency',
-      currency: 'INR',
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }).format(amount);
-  };
+  const [showAdd, setShowAdd] = useState(false);
+  const [showTransfer, setShowTransfer] = useState(false);
 
-  const typesMap = React.useMemo(() => new Map(accountTypes.map(t => [t.id, t])), [accountTypes]);
+  const addForm = useForm({
+    resolver: zodResolver(accountSchema),
+    defaultValues: { name: '', type: '', initial_balance: 0 },
+  });
 
-  const totalAssets = accounts
-    .filter((account) => typesMap.get(account.account_type_id)?.category === 'asset')
-    .reduce((sum, account) => sum + account.balance, 0);
+  const transferForm = useForm({
+    resolver: zodResolver(transferSchema),
+    defaultValues: { from_account_id: '', to_account_id: '', amount: '' as unknown as number, description: '' },
+  });
 
-  const totalLiabilities = accounts
-    .filter((account) => typesMap.get(account.account_type_id)?.category === 'liability')
-    .reduce((sum, account) => sum + account.balance, 0);
-
-  const netWorth = totalAssets - totalLiabilities;
-
-  const resolveTypeMeta = (type: AccountType): { name: string; category: 'asset' | 'liability' | 'equity' } => {
-    switch (type) {
-      case 'checking': return { name: 'Checking', category: 'asset' };
-      case 'savings': return { name: 'Savings', category: 'asset' };
-      case 'investment': return { name: 'Investment', category: 'asset' };
-      case 'credit': return { name: 'Credit Card', category: 'liability' };
-      case 'loan': return { name: 'Loan', category: 'liability' };
-      case 'cash': return { name: 'Cash', category: 'asset' };
-      case 'wallet': return { name: 'Wallet', category: 'asset' };
-      default: return { name: 'Account', category: 'asset' };
+  const handleAddAccount = async (values: z.infer<typeof accountSchema>) => {
+    try {
+      await addMutation.mutateAsync({
+        name: values.name,
+        type: values.type as AccountType,
+        initial_balance: values.initial_balance,
+      });
+      toast.success('Account created');
+      addForm.reset();
+      setShowAdd(false);
+    } catch {
+      toast.error('Failed to create account');
     }
   };
 
-  const getOrCreateAccountType = async (type: AccountType): Promise<string> => {
-    if (!user) throw new Error('Not authenticated');
-    const meta = resolveTypeMeta(type);
-    const { data: existing } = await supabase
-      .from('account_types')
-      .select('id')
-      .eq('name', meta.name)
-      .or(`is_system.eq.true,user_id.eq.${user.id}`)
-      .maybeSingle();
-
-    if (existing?.id) return existing.id;
-
-    const { data, error } = await supabase
-      .from('account_types')
-      .insert([{ name: meta.name, category: meta.category, user_id: user.id, is_system: false }])
-      .select('id')
-      .single();
-    if (error) throw error;
-    return data.id as string;
+  const handleTransfer = async (values: z.infer<typeof transferSchema>) => {
+    try {
+      await transferMutation.mutateAsync({
+        type: 'transfer',
+        amount: values.amount,
+        description: values.description || 'Transfer',
+        account_id: values.from_account_id,
+        to_account_id: values.to_account_id,
+        date: toDateInputValue(),
+      });
+      toast.success('Transfer completed');
+      transferForm.reset();
+      setShowTransfer(false);
+    } catch {
+      toast.error('Transfer failed');
+    }
   };
 
-  const handleAddAccount = async () => {
-    if (!user) return;
+  const handleSetDefault = async (id: string) => {
+    try {
+      await updateMutation.mutateAsync({ id, data: { is_default: true } });
+      toast.success('Default account updated');
+    } catch {
+      toast.error('Failed to update default');
+    }
+  };
 
-    const parsed = newAccountSchema.safeParse(newAccount);
-    if (!parsed.success) {
-      const msg = parsed.error.errors[0]?.message || 'Please check your input';
-      toast({ title: 'Invalid input', description: msg, variant: 'destructive' });
+  const handleDelete = async (id: string) => {
+    if (accounts.length <= 1) {
+      toast.error('You must have at least one account');
       return;
     }
-
     try {
-      const accountTypeId = await getOrCreateAccountType(newAccount.type);
-      const { data, error } = await supabase
-        .from('accounts')
-        .insert([{
-          user_id: user.id,
-          name: newAccount.name,
-          account_type_id: accountTypeId,
-          balance: newAccount.initial_balance,
-          initial_balance: newAccount.initial_balance,
-          currency: newAccount.currency,
-          description: newAccount.description,
-          color: newAccount.color,
-          account_number: newAccount.account_number,
-          is_active: true,
-          is_default: accounts.length === 0,
-        }])
-        .select()
-        .single();
-
-      if (error) throw error;
-
-      toast({
-        title: 'Account created!',
-        description: `Successfully created ${newAccount.name} account.`,
-      });
-
-      setNewAccount({
-        name: '',
-        type: 'checking',
-        initial_balance: 0,
-        currency: 'INR',
-        description: '',
-        color: '#2196f3',
-      });
-      setIsAddDialogOpen(false);
-    } catch (error: any) {
-      console.error('Error creating account:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to create account. Please try again.',
-        variant: 'destructive',
-      });
+      await deleteMutation.mutateAsync(id);
+      toast.success('Account archived');
+    } catch {
+      toast.error('Failed to archive account');
     }
   };
 
-  const getAccountIcon = (type: string) => {
-    switch (type) {
-      case 'checking':
-        return <Building className="h-5 w-5" />;
-      case 'savings':
-        return <PiggyBank className="h-5 w-5" />;
-      case 'investment':
-        return <TrendingUp className="h-5 w-5" />;
-      case 'credit':
-        return <CreditCard className="h-5 w-5" />;
-      case 'loan':
-        return <Landmark className="h-5 w-5" />;
-      case 'cash':
-      case 'wallet':
-        return <Wallet className="h-5 w-5" />;
-      default:
-        return <Wallet className="h-5 w-5" />;
-    }
-  };
-
-  const getAccountColor = (type: string) => {
-    switch (type) {
-      case 'checking':
-        return 'bg-blue-100 text-blue-700';
-      case 'savings':
-        return 'bg-green-100 text-green-700';
-      case 'investment':
-        return 'bg-purple-100 text-purple-700';
-      case 'credit':
-        return 'bg-orange-100 text-orange-700';
-      case 'loan':
-        return 'bg-red-100 text-red-700';
-      case 'cash':
-      case 'wallet':
-        return 'bg-gray-100 text-gray-700';
-      default:
-        return 'bg-gray-100 text-gray-700';
-    }
-  };
-
-  const renderAccountCard = (account: any) => {
-    const typeObj = accountTypes.find((t) => t.id === account.account_type_id);
-    const typeName = typeObj?.name || 'Account';
-    const normalizedType = typeName.toLowerCase();
-    return (
-      <Card key={account.id} className="relative overflow-hidden">
-        <CardContent className="pt-6">
-          <div className="flex items-start justify-between">
-            <div className="flex items-center gap-3">
-              <div className={`p-2 rounded-full ${getAccountColor(normalizedType)}`}>
-                {getAccountIcon(normalizedType)}
-              </div>
-              <div>
-                <h3 className="font-medium">{account.name}</h3>
-                <p className="text-sm text-gray-500">{typeName}</p>
-              </div>
-            </div>
-          </div>
-          {account.is_default && (
-            <Badge variant="outline" className="ml-2">Default</Badge>
-          )}
-          <div className="mt-4">
-            <p className="text-2xl font-bold">{formatCurrency(account.balance)}</p>
-            {account.description && (
-              <p className="text-sm text-gray-500 mt-2">{account.description}</p>
-            )}
-          </div>
-          <div className="absolute top-2 right-2 flex gap-1">
-            <Button variant="ghost" size="icon" className="h-8 w-8">
-              <Edit2 className="h-4 w-4" />
-            </Button>
-            {!account.is_default && (
-              <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500">
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-    );
-  };
+  if (isLoading) {
+    return <div className="flex justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>;
+  }
 
   return (
-    <div className="space-y-6 md:space-y-8">
-      {/* Header */}
-      <div className="flex flex-col space-y-2">
-        <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Accounts</h1>
-        <p className="text-gray-600">
-          Manage your financial accounts, track balances, and organize your money across different account types.
-        </p>
-      </div>
-
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Net Worth */}
-        <Card className={`border-l-4 ${
-          netWorth >= 0 ? 'border-l-green-500 bg-green-50' : 'border-l-red-500 bg-red-50'
-        }`}>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className={`p-2 rounded-full ${
-                netWorth >= 0 ? 'bg-green-100' : 'bg-red-100'
-              }`}>
-                <Wallet className={`h-5 w-5 ${
-                  netWorth >= 0 ? 'text-green-600' : 'text-red-600'
-                }`} />
-              </div>
-              <div>
-                <p className="text-sm font-medium text-gray-500">Net Worth</p>
-                <p className={`text-xl font-bold ${
-                  netWorth >= 0 ? 'text-green-600' : 'text-red-600'
-                }`}>
-                  {formatCurrency(netWorth)}
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Total Assets */}
-        <Card className="border-l-4 border-l-blue-500 bg-blue-50">
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-full bg-blue-100">
-                <TrendingUp className="h-5 w-5 text-blue-600" />
-              </div>
-              <div>
-                <p className="text-sm font-medium text-gray-500">Total Assets</p>
-                <p className="text-xl font-bold text-blue-600">
-                  {formatCurrency(totalAssets)}
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Total Liabilities */}
-        <Card className="border-l-4 border-l-red-500 bg-red-50">
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-full bg-red-100">
-                <TrendingDown className="h-5 w-5 text-red-600" />
-              </div>
-              <div>
-                <p className="text-sm font-medium text-gray-500">Total Liabilities</p>
-                <p className="text-xl font-bold text-red-600">
-                  {formatCurrency(totalLiabilities)}
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Total Accounts */}
-        <Card className="border-l-4 border-l-gray-500 bg-gray-50">
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-full bg-gray-100">
-                <Wallet className="h-5 w-5 text-gray-600" />
-              </div>
-              <div>
-                <p className="text-sm font-medium text-gray-500">Total Accounts</p>
-                <p className="text-xl font-bold text-gray-700">
-                  {accounts.length}
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Accounts Section */}
-      <Card>
-        <CardHeader>
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <CardTitle className="text-lg font-medium">Your Accounts</CardTitle>
-            
-            <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-              <DialogTrigger asChild>
-                <Button className="bg-blue-600 hover:bg-blue-700">
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Account
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-[425px]">
-                <DialogHeader>
-                  <DialogTitle>Add New Account</DialogTitle>
-                </DialogHeader>
-                <div className="grid gap-4 py-4">
-                  <div className="grid gap-2">
-                    <Label htmlFor="name">Account Name</Label>
-                    <Input
-                      id="name"
-                      value={newAccount.name}
-                      onChange={(e) => setNewAccount({ ...newAccount, name: e.target.value })}
-                      placeholder="e.g., Main Bank Account"
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="type">Account Type</Label>
-                    <Select
-                      value={newAccount.type}
-                      onValueChange={(value: AccountType) => setNewAccount({ ...newAccount, type: value })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select account type" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="checking">Checking Account</SelectItem>
-                        <SelectItem value="savings">Savings Account</SelectItem>
-                        <SelectItem value="investment">Investment Account</SelectItem>
-                        <SelectItem value="credit">Credit Card</SelectItem>
-                        <SelectItem value="loan">Loan</SelectItem>
-                        <SelectItem value="cash">Cash</SelectItem>
-                        <SelectItem value="wallet">Digital Wallet</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="balance">Initial Balance</Label>
-                    <Input
-                      id="balance"
-                      type="number"
-                      value={newAccount.initial_balance}
-                      onChange={(e) => setNewAccount({ ...newAccount, initial_balance: parseFloat(e.target.value) || 0 })}
-                      placeholder="0.00"
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="description">Description (Optional)</Label>
-                    <Input
-                      id="description"
-                      value={newAccount.description}
-                      onChange={(e) => setNewAccount({ ...newAccount, description: e.target.value })}
-                      placeholder="Add a description for this account"
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="account_number">Account Number (Optional)</Label>
-                    <Input
-                      id="account_number"
-                      value={newAccount.account_number}
-                      onChange={(e) => setNewAccount({ ...newAccount, account_number: e.target.value })}
-                      placeholder="Last 4 digits of account number"
-                    />
-                  </div>
-                </div>
-                <DialogFooter>
-                  <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
-                    Cancel
-                  </Button>
-                  <Button onClick={handleAddAccount}>
-                    Add Account
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
+    <div className="space-y-6">
+      <PageHeader
+        title="Accounts"
+        description={`Total balance: ${formatCurrency(totalBalance)}`}
+        action={
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={() => setShowTransfer(true)} disabled={accounts.length < 2}>
+              <ArrowLeftRight className="mr-2 h-4 w-4" /> Transfer
+            </Button>
+            <Button size="sm" onClick={() => setShowAdd(true)}>
+              <Plus className="mr-2 h-4 w-4" /> Add Account
+            </Button>
           </div>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {accounts.map((account) => renderAccountCard(account))}
-          </div>
-        </CardContent>
-      </Card>
+        }
+      />
+
+      {accounts.length === 0 ? (
+        <EmptyState icon={Wallet} title="No accounts" description="Create your first account to start tracking." actionLabel="Add Account" onAction={() => setShowAdd(true)} />
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2">
+          {accounts.map((acc) => {
+            const meta = ACCOUNT_TYPE_META[acc.type] || ACCOUNT_TYPE_META.other;
+            return (
+              <Card key={acc.id}>
+                <CardContent className="p-5">
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-3">
+                      <div
+                        className="flex h-10 w-10 items-center justify-center rounded-xl"
+                        style={{ backgroundColor: `${acc.color || meta.color}20` }}
+                      >
+                        <span className="text-base font-semibold" style={{ color: acc.color || meta.color }}>
+                          {acc.name.charAt(0)}
+                        </span>
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <h3 className="font-semibold">{acc.name}</h3>
+                          {acc.is_default && <Star className="h-3.5 w-3.5 fill-yellow-400 text-yellow-400" />}
+                        </div>
+                        <p className="text-xs text-muted-foreground">{meta.label}</p>
+                      </div>
+                    </div>
+                    <div className="flex gap-1">
+                      {!acc.is_default && (
+                        <Button variant="ghost" size="icon" className="h-8 w-8" title="Set as default" onClick={() => handleSetDefault(acc.id)}>
+                          <Star className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive">
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Archive &quot;{acc.name}&quot;?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              This account will be hidden. Existing transactions are preserved.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction onClick={() => handleDelete(acc.id)} className="bg-destructive text-destructive-foreground">
+                              Archive
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
+                  </div>
+                  <p className={cn(
+                    'mt-4 text-2xl font-bold tabular-nums',
+                    Number(acc.balance) >= 0 ? '' : 'text-red-600 dark:text-red-400'
+                  )}>
+                    {formatCurrency(Number(acc.balance))}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Initial: {formatCurrency(Number(acc.initial_balance))}
+                  </p>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Add Account Dialog */}
+      <Dialog open={showAdd} onOpenChange={setShowAdd}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader><DialogTitle>Add Account</DialogTitle></DialogHeader>
+          <form onSubmit={addForm.handleSubmit(handleAddAccount)} className="space-y-4">
+            <div>
+              <Label>Account Name</Label>
+              <Input placeholder="e.g. HDFC Savings" className="mt-1" {...addForm.register('name')} />
+              {addForm.formState.errors.name && <p className="mt-1 text-xs text-destructive">{addForm.formState.errors.name.message}</p>}
+            </div>
+            <div>
+              <Label>Type</Label>
+              <Select value={addForm.watch('type')} onValueChange={(v) => addForm.setValue('type', v)}>
+                <SelectTrigger className="mt-1"><SelectValue placeholder="Select type" /></SelectTrigger>
+                <SelectContent>
+                  {Object.entries(ACCOUNT_TYPE_META).map(([key, meta]) => (
+                    <SelectItem key={key} value={key}>{meta.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Current Balance</Label>
+              <Input type="number" step="0.01" min="0" placeholder="0.00" className="mt-1" {...addForm.register('initial_balance')} />
+              <p className="mt-1 text-xs text-muted-foreground">Enter how much you currently have in this account</p>
+            </div>
+            <Button type="submit" className="w-full" disabled={addMutation.isPending}>
+              {addMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Create Account
+            </Button>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Transfer Dialog */}
+      <Dialog open={showTransfer} onOpenChange={setShowTransfer}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader><DialogTitle>Transfer Between Accounts</DialogTitle></DialogHeader>
+          <form onSubmit={transferForm.handleSubmit(handleTransfer)} className="space-y-4">
+            <div>
+              <Label>From</Label>
+              <Select value={transferForm.watch('from_account_id')} onValueChange={(v) => transferForm.setValue('from_account_id', v)}>
+                <SelectTrigger className="mt-1"><SelectValue placeholder="Source account" /></SelectTrigger>
+                <SelectContent>
+                  {accounts.map((a) => <SelectItem key={a.id} value={a.id}>{a.name} ({formatCurrency(Number(a.balance))})</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>To</Label>
+              <Select value={transferForm.watch('to_account_id')} onValueChange={(v) => transferForm.setValue('to_account_id', v)}>
+                <SelectTrigger className="mt-1"><SelectValue placeholder="Destination account" /></SelectTrigger>
+                <SelectContent>
+                  {accounts.filter((a) => a.id !== transferForm.watch('from_account_id')).map((a) => (
+                    <SelectItem key={a.id} value={a.id}>{a.name} ({formatCurrency(Number(a.balance))})</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {transferForm.formState.errors.to_account_id && <p className="mt-1 text-xs text-destructive">{transferForm.formState.errors.to_account_id.message}</p>}
+            </div>
+            <div>
+              <Label>Amount</Label>
+              <Input type="number" step="0.01" min="0" placeholder="0.00" className="mt-1" {...transferForm.register('amount')} />
+            </div>
+            <div>
+              <Label>Description (optional)</Label>
+              <Input placeholder="e.g. Monthly savings" className="mt-1" {...transferForm.register('description')} />
+            </div>
+            <Button type="submit" className="w-full" disabled={transferMutation.isPending}>
+              {transferMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Transfer
+            </Button>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
-};
-
-export default Accounts;
+}

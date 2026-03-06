@@ -1,147 +1,95 @@
-
-import React, { useState, useEffect } from 'react';
-import { Link, Navigate, useLocation } from 'react-router-dom';
-import { zodResolver } from '@hookform/resolvers/zod';
+import { useState } from 'react';
+import { Link, useNavigate, Navigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { LogIn, Eye, EyeOff } from 'lucide-react';
+import { toast } from 'sonner';
+import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { useAuth } from '@/contexts/AuthContext';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { useToast } from '@/hooks/use-toast';
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Eye, EyeOff, Loader2, IndianRupee } from 'lucide-react';
 
-const formSchema = z.object({
-  email: z.string().email({ message: 'Please enter a valid email address' }),
-  password: z.string().min(6, { message: 'Password must be at least 6 characters long' }),
+const schema = z.object({
+  email: z.string().email('Enter a valid email'),
+  password: z.string().min(6, 'Password must be at least 6 characters'),
 });
 
-type FormData = z.infer<typeof formSchema>;
+type FormValues = z.infer<typeof schema>;
 
-const Login: React.FC = () => {
-  const { login, isAuthenticated } = useAuth();
+export default function Login() {
+  const { user, login } = useAuth();
+  const navigate = useNavigate();
   const [showPassword, setShowPassword] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const location = useLocation();
-  const { toast } = useToast();
-  
-  const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
-    resolver: zodResolver(formSchema),
+
+  const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<FormValues>({
+    resolver: zodResolver(schema),
   });
 
-  const onSubmit = async (data: FormData) => {
-    setIsLoading(true);
-    setError(null);
-    
+  if (user) return <Navigate to="/dashboard" replace />;
+
+  const onSubmit = async (data: FormValues) => {
     try {
-      // Login will handle token storage through Supabase client
       await login(data.email, data.password);
-      // Navigation is handled in the login function
-    } catch (error) {
-      console.error("Login error:", error);
-      
-      // Error is handled in the login function and displayed via toast
-      if (error instanceof Error) {
-        setError(error.message);
-      } else {
-        setError('An unexpected error occurred. Please try again later.');
-      }
-    } finally {
-      setIsLoading(false);
+      navigate('/dashboard');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Login failed';
+      toast.error(message);
     }
   };
 
-  // Clear any previous errors when component mounts
-  useEffect(() => {
-    setError(null);
-  }, []);
-
-  // Get the intended destination from location state or default to dashboard
-  const from = location.state?.from || "/dashboard";
-
-  // If user is already authenticated, redirect to intended destination
-  if (isAuthenticated) {
-    return <Navigate to={from} />;
-  }
-
   return (
-    <div className="flex items-center justify-center min-h-[calc(100vh-8rem)]">
-      <Card className="w-full max-w-md">
-        <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl font-bold text-center">Login</CardTitle>
-          <CardDescription className="text-center">
-            Enter your email and password to access your account
-          </CardDescription>
+    <div className="flex min-h-dvh items-center justify-center bg-background p-4">
+      <Card className="w-full max-w-sm">
+        <CardHeader className="text-center">
+          <div className="mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground">
+            <IndianRupee className="h-5 w-5" />
+          </div>
+          <CardTitle className="text-xl">Welcome back</CardTitle>
+          <p className="text-sm text-muted-foreground">Sign in to your account</p>
         </CardHeader>
-        <CardContent>
-          {error && (
-            <Alert variant="destructive" className="mb-4">
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
-          {location.state?.from && (
-            <Alert className="mb-4">
-              <AlertDescription>
-                Please log in to access {location.state.from.replace('/', '')}
-              </AlertDescription>
-            </Alert>
-          )}
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-            <div className="space-y-2">
+        <form onSubmit={handleSubmit(onSubmit)}>
+          <CardContent className="space-y-4">
+            <div>
               <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="your.email@example.com"
-                {...register('email')}
-              />
-              {errors.email && (
-                <p className="text-sm font-medium text-destructive">{errors.email.message}</p>
-              )}
+              <Input id="email" type="email" placeholder="you@example.com" className="mt-1" {...register('email')} />
+              {errors.email && <p className="mt-1 text-xs text-destructive">{errors.email.message}</p>}
             </div>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="password">Password</Label>
-              </div>
-              <div className="relative">
+            <div>
+              <Label htmlFor="password">Password</Label>
+              <div className="relative mt-1">
                 <Input
                   id="password"
                   type={showPassword ? 'text' : 'password'}
-                  placeholder="••••••••"
+                  placeholder="Enter your password"
                   {...register('password')}
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700 focus:outline-none"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                 >
-                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
-              {errors.password && (
-                <p className="text-sm font-medium text-destructive">{errors.password.message}</p>
-              )}
+              {errors.password && <p className="mt-1 text-xs text-destructive">{errors.password.message}</p>}
             </div>
-            <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? 'Logging in...' : 'Login'}
-              {!isLoading && <LogIn className="ml-2 h-4 w-4" />}
+          </CardContent>
+          <CardFooter className="flex-col gap-3">
+            <Button type="submit" className="w-full" disabled={isSubmitting}>
+              {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Sign in
             </Button>
-          </form>
-        </CardContent>
-        <CardFooter className="flex flex-col space-y-4">
-          <div className="text-center text-sm">
-            Don't have an account?{' '}
-            <Link to="/register" className="text-blue-500 hover:text-blue-700 font-medium">
-              Sign up
-            </Link>
-          </div>
-        </CardFooter>
+            <p className="text-sm text-muted-foreground">
+              Don&apos;t have an account?{' '}
+              <Link to="/register" className="font-medium text-primary hover:underline">
+                Sign up
+              </Link>
+            </p>
+          </CardFooter>
+        </form>
       </Card>
     </div>
   );
-};
-
-export default Login;
+}

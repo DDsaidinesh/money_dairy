@@ -1,73 +1,90 @@
-import React from 'react';
-import TransactionForm from '@/components/transactions/TransactionForm';
-import TransactionList from '@/components/transactions/TransactionList';
-import SummaryCards from '@/components/dashboard/SummaryCards';
-import SpendingChart from '@/components/analytics/SpendingChart';
-import AccountSelector from '@/components/dashboard/AccountSelector';
-import { useMoneyFlow } from '@/contexts/MoneyFlowContext';
-import { Card, CardContent } from '@/components/ui/card';
-import { Loader2 } from 'lucide-react';
+import { useMemo } from 'react';
+import { useOutletContext } from 'react-router-dom';
+import { startOfMonth, endOfMonth, format } from 'date-fns';
+import { Plus, Loader2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { useRecentTransactions, useTransactions } from '@/hooks/use-transactions';
+import { useAccounts, useTotalBalance } from '@/hooks/use-accounts';
+import { useProfile } from '@/hooks/use-profile';
+import BalanceCard from '@/components/dashboard/BalanceCard';
+import RecentTransactions from '@/components/dashboard/RecentTransactions';
+import AccountsList from '@/components/dashboard/AccountsList';
+import PageHeader from '@/components/shared/PageHeader';
 
-const Dashboard: React.FC = () => {
-  const { isLoading, accounts } = useMoneyFlow();
+export default function Dashboard() {
+  const { openAddTransaction } = useOutletContext<{ openAddTransaction: () => void }>();
+  const { data: profile } = useProfile();
+  const { data: accounts = [], isLoading: accountsLoading } = useAccounts();
+  const totalBalance = useTotalBalance();
 
-  if (isLoading) {
+  const now = new Date();
+  const monthStart = format(startOfMonth(now), 'yyyy-MM-dd');
+  const monthEnd = format(endOfMonth(now), 'yyyy-MM-dd');
+
+  const { data: monthTransactions = [] } = useTransactions({
+    date_from: monthStart,
+    date_to: monthEnd,
+  });
+
+  const { data: recentTransactions = [], isLoading: txLoading } = useRecentTransactions(10);
+
+  const { monthIncome, monthExpense } = useMemo(() => {
+    let income = 0;
+    let expense = 0;
+    for (const tx of monthTransactions) {
+      if (tx.type === 'income') income += Number(tx.amount);
+      else if (tx.type === 'expense') expense += Number(tx.amount);
+    }
+    return { monthIncome: income, monthExpense: expense };
+  }, [monthTransactions]);
+
+  const greeting = getGreeting();
+  const firstName = profile?.name?.split(' ')[0] || 'there';
+
+  if (accountsLoading || txLoading) {
     return (
-      <div className="space-y-8">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-          <p className="text-muted-foreground mt-2">Welcome back! Here's your financial overview.</p>
-        </div>
-        <Card>
-          <CardContent className="py-12">
-            <div className="flex flex-col items-center justify-center gap-4">
-              <Loader2 className="h-10 w-10 animate-spin text-primary" />
-              <span className="text-muted-foreground">Loading your financial data...</span>
-            </div>
-          </CardContent>
-        </Card>
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
       </div>
     );
   }
 
   return (
-    <div className="space-y-8 animate-fade-in">
-      {/* Page Header */}
-      <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-        <p className="text-muted-foreground">Welcome back! Here's your financial overview.</p>
-      </div>
-      
-      {/* Summary Cards Section */}
-      <section>
-        <SummaryCards />
-      </section>
-      
-      {/* Main Content Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Left Column - Main Content */}
-        <div className="lg:col-span-2 space-y-8">
-          {/* Transaction Form & Account Selector */}
-          <section className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <TransactionForm />
-            {accounts.length > 0 && <AccountSelector />}
-          </section>
-          
-          {/* Spending Chart */}
-          <section>
-            <SpendingChart />
-          </section>
+    <div className="space-y-6">
+      <PageHeader
+        title={`${greeting}, ${firstName}`}
+        description={format(now, 'EEEE, dd MMMM yyyy')}
+        action={
+          <Button onClick={openAddTransaction} className="hidden md:inline-flex">
+            <Plus className="mr-2 h-4 w-4" /> Add Transaction
+          </Button>
+        }
+      />
+
+      <BalanceCard
+        totalBalance={totalBalance}
+        monthIncome={monthIncome}
+        monthExpense={monthExpense}
+      />
+
+      <div className="grid gap-6 lg:grid-cols-5">
+        <div className="lg:col-span-3">
+          <RecentTransactions
+            transactions={recentTransactions}
+            onAddClick={openAddTransaction}
+          />
         </div>
-        
-        {/* Right Column - Transaction List */}
-        <div className="lg:col-span-1">
-          <section className="lg:sticky lg:top-24 lg:max-h-[calc(100vh-8rem)] lg:overflow-hidden">
-            <TransactionList />
-          </section>
+        <div className="lg:col-span-2">
+          <AccountsList accounts={accounts} />
         </div>
       </div>
     </div>
   );
-};
+}
 
-export default Dashboard;
+function getGreeting(): string {
+  const hour = new Date().getHours();
+  if (hour < 12) return 'Good morning';
+  if (hour < 17) return 'Good afternoon';
+  return 'Good evening';
+}
