@@ -1,14 +1,15 @@
 import { useState, useMemo } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { format } from 'date-fns';
+import { format, startOfMonth, endOfMonth, subDays, subMonths } from 'date-fns';
 import {
   Plus, Search, Download, Trash2, Pencil,
   ArrowUpRight, ArrowDownLeft, ArrowLeftRight,
-  Loader2, Receipt,
+  Loader2, Receipt, X, CalendarDays,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -19,12 +20,12 @@ import {
   AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { useTransactions, useDeleteTransaction } from '@/hooks/use-transactions';
-import { useCategories } from '@/hooks/use-categories';
-import { formatCurrency, formatDateGroupKey, cn, groupByDate } from '@/lib/utils';
+import { formatCurrency, formatDateGroupKey, cn, groupByDate, toDateInputValue } from '@/lib/utils';
 import TransactionDialog from '@/components/transactions/TransactionDialog';
+import ExportDialog from '@/components/transactions/ExportDialog';
 import PageHeader from '@/components/shared/PageHeader';
 import EmptyState from '@/components/shared/EmptyState';
-import type { Transaction, TransactionType } from '@/types';
+import type { Transaction } from '@/types';
 
 const typeConfig = {
   income: { icon: ArrowDownLeft, color: 'text-emerald-400', bg: 'bg-emerald-500/10', sign: '+' },
@@ -32,14 +33,54 @@ const typeConfig = {
   transfer: { icon: ArrowLeftRight, color: 'text-foreground/60', bg: 'bg-foreground/5', sign: '' },
 };
 
+type DatePreset = 'all' | '7d' | '30d' | 'this_month' | 'last_month' | 'custom';
+
+const datePresets: { value: DatePreset; label: string }[] = [
+  { value: 'all', label: 'All Time' },
+  { value: '7d', label: 'Last 7 Days' },
+  { value: '30d', label: 'Last 30 Days' },
+  { value: 'this_month', label: 'This Month' },
+  { value: 'last_month', label: 'Last Month' },
+  { value: 'custom', label: 'Custom Range' },
+];
+
+function getPresetRange(preset: DatePreset): { from?: string; to?: string } {
+  const now = new Date();
+  switch (preset) {
+    case 'all': return {};
+    case '7d': return { from: format(subDays(now, 6), 'yyyy-MM-dd'), to: format(now, 'yyyy-MM-dd') };
+    case '30d': return { from: format(subDays(now, 29), 'yyyy-MM-dd'), to: format(now, 'yyyy-MM-dd') };
+    case 'this_month': return { from: format(startOfMonth(now), 'yyyy-MM-dd'), to: format(endOfMonth(now), 'yyyy-MM-dd') };
+    case 'last_month': {
+      const last = subMonths(now, 1);
+      return { from: format(startOfMonth(last), 'yyyy-MM-dd'), to: format(endOfMonth(last), 'yyyy-MM-dd') };
+    }
+    case 'custom': return {};
+  }
+}
+
 export default function Transactions() {
   const { openAddTransaction } = useOutletContext<{ openAddTransaction: () => void }>();
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState<string>('all');
+  const [datePreset, setDatePreset] = useState<DatePreset>('all');
+  const [customFrom, setCustomFrom] = useState('');
+  const [customTo, setCustomTo] = useState('');
   const [editTx, setEditTx] = useState<Transaction | undefined>();
   const [showEdit, setShowEdit] = useState(false);
+  const [showExport, setShowExport] = useState(false);
 
-  const { data: transactions = [], isLoading } = useTransactions();
+  const dateRange = useMemo(() => {
+    if (datePreset === 'custom') {
+      return { from: customFrom || undefined, to: customTo || undefined };
+    }
+    return getPresetRange(datePreset);
+  }, [datePreset, customFrom, customTo]);
+
+  const { data: transactions = [], isLoading } = useTransactions({
+    date_from: dateRange.from,
+    date_to: dateRange.to,
+  });
   const deleteMutation = useDeleteTransaction();
 
   const filtered = useMemo(() => {
@@ -57,6 +98,16 @@ export default function Transactions() {
 
   const grouped = useMemo(() => groupByDate(filtered), [filtered]);
 
+  const hasActiveFilters = search || typeFilter !== 'all' || datePreset !== 'all';
+
+  const clearFilters = () => {
+    setSearch('');
+    setTypeFilter('all');
+    setDatePreset('all');
+    setCustomFrom('');
+    setCustomTo('');
+  };
+
   const handleDelete = async (id: string) => {
     try {
       await deleteMutation.mutateAsync(id);
@@ -66,27 +117,6 @@ export default function Transactions() {
     }
   };
 
-  const handleExport = () => {
-    const headers = ['Date', 'Type', 'Amount', 'Category', 'Description', 'Account'];
-    const rows = filtered.map((tx) => [
-      tx.date,
-      tx.type,
-      tx.amount,
-      tx.category?.name || '',
-      tx.description || '',
-      tx.account?.name || '',
-    ]);
-    const csv = [headers, ...rows].map((r) => r.map((v) => `"${v}"`).join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `transactions-${format(new Date(), 'yyyy-MM-dd')}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-    toast.success('Exported to CSV');
-  };
-
   return (
     <div className="space-y-6">
       <PageHeader
@@ -94,7 +124,7 @@ export default function Transactions() {
         description="Your complete transaction history"
         action={
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={handleExport} disabled={filtered.length === 0}>
+            <Button variant="outline" size="sm" onClick={() => setShowExport(true)}>
               <Download className="mr-2 h-4 w-4" /> Export
             </Button>
             <Button size="sm" onClick={openAddTransaction} className="hidden md:inline-flex">
@@ -105,7 +135,7 @@ export default function Transactions() {
       />
 
       <Card>
-        <CardContent className="p-4">
+        <CardContent className="p-4 space-y-3">
           <div className="flex flex-col gap-3 sm:flex-row">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -127,7 +157,55 @@ export default function Transactions() {
                 <SelectItem value="transfer">Transfer</SelectItem>
               </SelectContent>
             </Select>
+            <Select value={datePreset} onValueChange={(v) => setDatePreset(v as DatePreset)}>
+              <SelectTrigger className="w-full sm:w-44">
+                <CalendarDays className="mr-2 h-4 w-4 text-muted-foreground" />
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {datePresets.map((p) => (
+                  <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
+
+          {datePreset === 'custom' && (
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <div className="flex-1">
+                <Label className="text-xs text-muted-foreground">From</Label>
+                <Input
+                  type="date"
+                  value={customFrom}
+                  max={customTo || toDateInputValue()}
+                  onChange={(e) => setCustomFrom(e.target.value)}
+                  className="mt-1"
+                />
+              </div>
+              <div className="flex-1">
+                <Label className="text-xs text-muted-foreground">To</Label>
+                <Input
+                  type="date"
+                  value={customTo}
+                  min={customFrom}
+                  max={toDateInputValue()}
+                  onChange={(e) => setCustomTo(e.target.value)}
+                  className="mt-1"
+                />
+              </div>
+            </div>
+          )}
+
+          {hasActiveFilters && (
+            <div className="flex items-center justify-between pt-1">
+              <p className="text-xs text-muted-foreground">
+                {filtered.length} transaction{filtered.length !== 1 ? 's' : ''} found
+              </p>
+              <Button variant="ghost" size="sm" onClick={clearFilters} className="h-7 text-xs text-muted-foreground">
+                <X className="mr-1 h-3 w-3" /> Clear filters
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -139,9 +217,9 @@ export default function Transactions() {
         <EmptyState
           icon={Receipt}
           title="No transactions found"
-          description={search || typeFilter !== 'all' ? 'Try changing your filters.' : 'Add your first transaction to get started.'}
-          actionLabel={!search && typeFilter === 'all' ? 'Add Transaction' : undefined}
-          onAction={!search && typeFilter === 'all' ? openAddTransaction : undefined}
+          description={hasActiveFilters ? 'Try changing your filters.' : 'Add your first transaction to get started.'}
+          actionLabel={!hasActiveFilters ? 'Add Transaction' : undefined}
+          onAction={!hasActiveFilters ? openAddTransaction : undefined}
         />
       ) : (
         <div className="space-y-6">
@@ -225,6 +303,8 @@ export default function Transactions() {
           editTransaction={editTx}
         />
       )}
+
+      <ExportDialog open={showExport} onOpenChange={setShowExport} />
     </div>
   );
 }

@@ -9,21 +9,24 @@ import {
 } from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { useTransactions } from '@/hooks/use-transactions';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, toDateInputValue } from '@/lib/utils';
 import PageHeader from '@/components/shared/PageHeader';
 import EmptyState from '@/components/shared/EmptyState';
 
-type Period = '7d' | '30d' | 'this_month' | 'last_month';
+type Period = '7d' | '30d' | 'this_month' | 'last_month' | 'custom';
 
 const periods: { value: Period; label: string }[] = [
   { value: '7d', label: '7 Days' },
   { value: '30d', label: '30 Days' },
   { value: 'this_month', label: 'This Month' },
   { value: 'last_month', label: 'Last Month' },
+  { value: 'custom', label: 'Custom' },
 ];
 
-function getDateRange(period: Period) {
+function getDateRange(period: Period): { from: string; to: string } {
   const now = new Date();
   switch (period) {
     case '7d':
@@ -36,6 +39,8 @@ function getDateRange(period: Period) {
       const last = subMonths(now, 1);
       return { from: format(startOfMonth(last), 'yyyy-MM-dd'), to: format(endOfMonth(last), 'yyyy-MM-dd') };
     }
+    case 'custom':
+      return { from: format(startOfMonth(now), 'yyyy-MM-dd'), to: format(now, 'yyyy-MM-dd') };
   }
 }
 
@@ -57,7 +62,25 @@ const CHART_COLORS = [
 
 export default function Analytics() {
   const [period, setPeriod] = useState<Period>('this_month');
-  const range = getDateRange(period);
+  const defaultRange = getDateRange(period);
+  const [customFrom, setCustomFrom] = useState(defaultRange.from);
+  const [customTo, setCustomTo] = useState(defaultRange.to);
+
+  const range = useMemo(() => {
+    if (period === 'custom') {
+      return { from: customFrom, to: customTo };
+    }
+    return getDateRange(period);
+  }, [period, customFrom, customTo]);
+
+  const handlePeriodChange = (p: Period) => {
+    setPeriod(p);
+    if (p !== 'custom') {
+      const r = getDateRange(p);
+      setCustomFrom(r.from);
+      setCustomTo(r.to);
+    }
+  };
 
   const { data: transactions = [], isLoading } = useTransactions({
     date_from: range.from,
@@ -99,17 +122,49 @@ export default function Analytics() {
     <div className="space-y-6">
       <PageHeader title="Analytics" description="Understand your spending patterns" />
 
-      <div className="flex flex-wrap gap-2">
-        {periods.map((p) => (
-          <Button
-            key={p.value}
-            variant={period === p.value ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setPeriod(p.value)}
-          >
-            {p.label}
-          </Button>
-        ))}
+      <div className="space-y-3">
+        <div className="flex flex-wrap gap-2">
+          {periods.map((p) => (
+            <Button
+              key={p.value}
+              variant={period === p.value ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => handlePeriodChange(p.value)}
+            >
+              {p.label}
+            </Button>
+          ))}
+        </div>
+
+        {period === 'custom' && (
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex flex-col gap-3 sm:flex-row">
+                <div className="flex-1">
+                  <Label className="text-xs text-muted-foreground">From</Label>
+                  <Input
+                    type="date"
+                    value={customFrom}
+                    max={customTo || toDateInputValue()}
+                    onChange={(e) => setCustomFrom(e.target.value)}
+                    className="mt-1"
+                  />
+                </div>
+                <div className="flex-1">
+                  <Label className="text-xs text-muted-foreground">To</Label>
+                  <Input
+                    type="date"
+                    value={customTo}
+                    min={customFrom}
+                    max={toDateInputValue()}
+                    onChange={(e) => setCustomTo(e.target.value)}
+                    className="mt-1"
+                  />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
