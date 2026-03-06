@@ -11,15 +11,8 @@ export function formatCurrency(amount: number, currency: string = DEFAULT_CURREN
   const symbol = CURRENCY_SYMBOL[currency] || '₹';
   const absAmount = Math.abs(amount);
 
-  if (absAmount >= 10000000) {
-    return `${amount < 0 ? '-' : ''}${symbol}${(absAmount / 10000000).toFixed(2)}Cr`;
-  }
-  if (absAmount >= 100000) {
-    return `${amount < 0 ? '-' : ''}${symbol}${(absAmount / 100000).toFixed(2)}L`;
-  }
-
   return `${amount < 0 ? '-' : ''}${symbol}${absAmount.toLocaleString('en-IN', {
-    minimumFractionDigits: 0,
+    minimumFractionDigits: absAmount % 1 !== 0 ? 2 : 0,
     maximumFractionDigits: 2,
   })}`;
 }
