@@ -33,10 +33,7 @@ const schema = z.object({
   account_id: z.string().min(1, 'Select an account'),
   to_account_id: z.string().optional(),
   date: z.string().min(1, 'Select a date'),
-}).refine(
-  (data) => true,
-  { message: 'Invalid form data' }
-);
+});
 
 type FormValues = z.infer<typeof schema>;
 

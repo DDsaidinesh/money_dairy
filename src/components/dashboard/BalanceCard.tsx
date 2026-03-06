@@ -17,9 +17,9 @@ export default function BalanceCard({ totalBalance, monthIncome, monthExpense }:
         <CardContent className="p-5">
           <div className="flex items-center gap-2 text-muted-foreground">
             <Wallet className="h-4 w-4" />
-            <span className="text-sm font-medium">Total Balance</span>
+            <span className="text-sm font-medium">Net Worth</span>
           </div>
-          <p className="mt-1 text-3xl font-display font-bold tracking-tight">
+          <p className={`mt-1 text-3xl font-display font-bold tracking-tight ${totalBalance < 0 ? 'text-red-400' : ''}`}>
             {formatCurrency(totalBalance)}
           </p>
         </CardContent>

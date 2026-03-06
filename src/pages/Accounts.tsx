@@ -1,10 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { toast } from 'sonner';
 import {
-  Plus, Star, Trash2, Pencil, Loader2, Wallet,
+  Plus, Star, Trash2, Loader2, Wallet,
   ArrowLeftRight,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -27,7 +27,7 @@ import {
 } from '@/hooks/use-accounts';
 import { useAddTransaction } from '@/hooks/use-transactions';
 import { formatCurrency, cn, toDateInputValue } from '@/lib/utils';
-import { ACCOUNT_TYPE_META } from '@/lib/constants';
+import { ACCOUNT_TYPE_META, isDebtAccount } from '@/lib/constants';
 import PageHeader from '@/components/shared/PageHeader';
 import EmptyState from '@/components/shared/EmptyState';
 import type { AccountType } from '@/types';
@@ -35,7 +35,7 @@ import type { AccountType } from '@/types';
 const accountSchema = z.object({
   name: z.string().min(1, 'Account name is required'),
   type: z.string().min(1, 'Select an account type'),
-  initial_balance: z.coerce.number().min(0, 'Balance cannot be negative'),
+  initial_balance: z.coerce.number().min(0, 'Must be 0 or greater'),
 });
 
 const transferSchema = z.object({
@@ -69,6 +69,21 @@ export default function Accounts() {
     defaultValues: { from_account_id: '', to_account_id: '', amount: '' as unknown as number, description: '' },
   });
 
+  const watchedType = addForm.watch('type') as AccountType;
+  const isDebt = watchedType ? isDebtAccount(watchedType) : false;
+
+  useEffect(() => {
+    if (showAdd) {
+      addForm.reset({ name: '', type: '', initial_balance: 0 });
+    }
+  }, [showAdd, addForm]);
+
+  useEffect(() => {
+    if (showTransfer) {
+      transferForm.reset({ from_account_id: '', to_account_id: '', amount: '' as unknown as number, description: '' });
+    }
+  }, [showTransfer, transferForm]);
+
   const handleAddAccount = async (values: z.infer<typeof accountSchema>) => {
     try {
       await addMutation.mutateAsync({
@@ -77,7 +92,6 @@ export default function Accounts() {
         initial_balance: values.initial_balance,
       });
       toast.success('Account created');
-      addForm.reset();
       setShowAdd(false);
     } catch {
       toast.error('Failed to create account');
@@ -95,7 +109,6 @@ export default function Accounts() {
         date: toDateInputValue(),
       });
       toast.success('Transfer completed');
-      transferForm.reset();
       setShowTransfer(false);
     } catch {
       toast.error('Transfer failed');
@@ -112,6 +125,13 @@ export default function Accounts() {
   };
 
   const handleDelete = async (id: string) => {
+    const target = accounts.find((a) => a.id === id);
+    if (!target) return;
+
+    if (target.is_default) {
+      toast.error('Cannot archive the default account. Set another account as default first.');
+      return;
+    }
     if (accounts.length <= 1) {
       toast.error('You must have at least one account');
       return;
@@ -132,7 +152,7 @@ export default function Accounts() {
     <div className="space-y-6">
       <PageHeader
         title="Accounts"
-        description={`Total balance: ${formatCurrency(totalBalance)}`}
+        description={`Net worth: ${formatCurrency(totalBalance)}`}
         action={
           <div className="flex gap-2">
             <Button variant="outline" size="sm" onClick={() => setShowTransfer(true)} disabled={accounts.length < 2}>
@@ -151,6 +171,8 @@ export default function Accounts() {
         <div className="grid gap-4 sm:grid-cols-2">
           {accounts.map((acc) => {
             const meta = ACCOUNT_TYPE_META[acc.type] || ACCOUNT_TYPE_META.other;
+            const balance = Number(acc.balance);
+            const isDebtType = meta.isDebt;
             return (
               <Card key={acc.id}>
                 <CardContent className="p-5">
@@ -178,38 +200,52 @@ export default function Accounts() {
                           <Star className="h-3.5 w-3.5" />
                         </Button>
                       )}
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive">
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Archive &quot;{acc.name}&quot;?</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              This account will be hidden. Existing transactions are preserved.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction onClick={() => handleDelete(acc.id)} className="bg-destructive text-destructive-foreground">
-                              Archive
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
+                      {!acc.is_default && (
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive">
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Archive &quot;{acc.name}&quot;?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                This account will be hidden. Existing transactions are preserved.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction onClick={() => handleDelete(acc.id)} className="bg-destructive text-destructive-foreground">
+                                Archive
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      )}
                     </div>
                   </div>
-                  <p className={cn(
-                    'mt-4 text-2xl font-bold tabular-nums',
-                    Number(acc.balance) >= 0 ? '' : 'text-red-400'
-                  )}>
-                    {formatCurrency(Number(acc.balance))}
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Initial: {formatCurrency(Number(acc.initial_balance))}
-                  </p>
+                  <div className="mt-4">
+                    <p className={cn(
+                      'text-2xl font-bold tabular-nums',
+                      isDebtType ? 'text-red-400' : (balance < 0 ? 'text-red-400' : '')
+                    )}>
+                      {isDebtType
+                        ? `${formatCurrency(Math.abs(balance))} owed`
+                        : formatCurrency(balance)
+                      }
+                    </p>
+                    {isDebtType && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Initial: {formatCurrency(Math.abs(Number(acc.initial_balance)))} owed
+                      </p>
+                    )}
+                    {!isDebtType && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Initial: {formatCurrency(Number(acc.initial_balance))}
+                      </p>
+                    )}
+                  </div>
                 </CardContent>
               </Card>
             );
@@ -239,9 +275,14 @@ export default function Accounts() {
               </Select>
             </div>
             <div>
-              <Label>Current Balance</Label>
+              <Label>{isDebt ? 'Outstanding Balance' : 'Current Balance'}</Label>
               <Input type="number" step="0.01" min="0" placeholder="0.00" className="mt-1" {...addForm.register('initial_balance')} />
-              <p className="mt-1 text-xs text-muted-foreground">Enter how much you currently have in this account</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {isDebt
+                  ? 'Enter how much you currently owe on this account'
+                  : 'Enter how much you currently have in this account'
+                }
+              </p>
             </div>
             <Button type="submit" className="w-full" disabled={addMutation.isPending}>
               {addMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}

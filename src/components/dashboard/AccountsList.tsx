@@ -27,6 +27,8 @@ export default function AccountsList({ accounts }: AccountsListProps) {
         <div className="divide-y divide-border/50">
           {accounts.map((acc) => {
             const meta = ACCOUNT_TYPE_META[acc.type] || ACCOUNT_TYPE_META.other;
+            const balance = Number(acc.balance);
+            const isDebt = meta.isDebt;
             return (
               <div key={acc.id} className="flex items-center gap-3 px-6 py-3">
                 <div
@@ -46,9 +48,12 @@ export default function AccountsList({ accounts }: AccountsListProps) {
                 </div>
                 <span className={cn(
                   'text-sm font-semibold tabular-nums',
-                  Number(acc.balance) >= 0 ? 'text-foreground' : 'text-red-400'
+                  isDebt ? 'text-red-400' : (balance < 0 ? 'text-red-400' : 'text-foreground')
                 )}>
-                  {formatCurrency(Number(acc.balance))}
+                  {isDebt
+                    ? `${formatCurrency(Math.abs(balance))} owed`
+                    : formatCurrency(balance)
+                  }
                 </span>
               </div>
             );

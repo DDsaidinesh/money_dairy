@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
+import { isDebtAccount } from '@/lib/constants';
 import type { Account, AccountFormData } from '@/types';
 
 const ACCOUNTS_KEY = 'accounts';
@@ -44,12 +45,15 @@ export function useAddAccount() {
   return useMutation({
     mutationFn: async (data: AccountFormData) => {
       if (!user) throw new Error('Not authenticated');
+      const storedBalance = isDebtAccount(data.type)
+        ? -Math.abs(data.initial_balance)
+        : Math.abs(data.initial_balance);
       const { error } = await supabase.from('accounts').insert({
         user_id: user.id,
         name: data.name,
         type: data.type,
-        balance: data.initial_balance,
-        initial_balance: data.initial_balance,
+        balance: storedBalance,
+        initial_balance: storedBalance,
         icon: data.icon || null,
         color: data.color || null,
       });
