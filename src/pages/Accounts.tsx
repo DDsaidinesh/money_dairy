@@ -167,7 +167,7 @@ export default function Accounts() {
                       <div>
                         <div className="flex items-center gap-1.5">
                           <h3 className="font-semibold">{acc.name}</h3>
-                          {acc.is_default && <Star className="h-3.5 w-3.5 fill-yellow-400 text-yellow-400" />}
+                          {acc.is_default && <Star className="h-3.5 w-3.5 fill-foreground/50 text-foreground/50" />}
                         </div>
                         <p className="text-xs text-muted-foreground">{meta.label}</p>
                       </div>
@@ -203,7 +203,7 @@ export default function Accounts() {
                   </div>
                   <p className={cn(
                     'mt-4 text-2xl font-bold tabular-nums',
-                    Number(acc.balance) >= 0 ? '' : 'text-red-600 dark:text-red-400'
+                    Number(acc.balance) >= 0 ? '' : 'text-red-400'
                   )}>
                     {formatCurrency(Number(acc.balance))}
                   </p>

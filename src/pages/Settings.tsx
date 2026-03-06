@@ -18,7 +18,8 @@ export default function Settings() {
   const navigate = useNavigate();
   const [name, setName] = useState('');
   const [nameLoaded, setNameLoaded] = useState(false);
-  const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'));
+  const [isLight, setIsLight] = useState(() => document.documentElement.classList.contains('light'));
+  const isDark = !isLight;
 
   if (profile && !nameLoaded) {
     setName(profile.name);
@@ -36,10 +37,11 @@ export default function Settings() {
   };
 
   const toggleTheme = () => {
-    const next = !isDark;
-    setIsDark(next);
-    document.documentElement.classList.toggle('dark', next);
-    localStorage.setItem('theme', next ? 'dark' : 'light');
+    const goLight = !isLight;
+    setIsLight(goLight);
+    document.documentElement.classList.toggle('light', goLight);
+    document.documentElement.classList.toggle('dark', !goLight);
+    localStorage.setItem('theme', goLight ? 'light' : 'dark');
   };
 
   const handleLogout = async () => {
@@ -91,7 +93,7 @@ export default function Settings() {
               <p className="text-xs text-muted-foreground">Switch between light and dark mode</p>
             </div>
             <Button variant="outline" size="icon" onClick={toggleTheme}>
-              {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+              {isLight ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
             </Button>
           </div>
         </CardContent>

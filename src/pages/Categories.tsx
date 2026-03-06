@@ -27,8 +27,8 @@ const schema = z.object({
 });
 
 const PRESET_COLORS = [
-  '#ef4444', '#f97316', '#eab308', '#84cc16', '#22c55e',
-  '#14b8a6', '#06b6d4', '#3b82f6', '#8b5cf6', '#ec4899',
+  '#e5e5e5', '#a3a3a3', '#737373', '#525252', '#404040',
+  '#d4d4d4', '#8b8b8b', '#666666', '#b3b3b3', '#595959',
 ];
 
 export default function Categories() {
@@ -76,7 +76,7 @@ export default function Categories() {
 
   const renderList = (list: typeof categories) => (
     <Card>
-      <CardContent className="p-0 divide-y">
+      <CardContent className="p-0 divide-y divide-border/50">
         {list.map((cat) => (
           <div key={cat.id} className="flex items-center gap-3 px-4 py-3">
             <span

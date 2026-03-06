@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import {
-  startOfMonth, endOfMonth, subDays, subMonths, format, startOfDay, endOfDay,
+  startOfMonth, endOfMonth, subDays, subMonths, format,
 } from 'date-fns';
 import { Loader2, TrendingUp, TrendingDown, BarChart3 } from 'lucide-react';
 import {
@@ -10,7 +10,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useTransactions } from '@/hooks/use-transactions';
-import { formatCurrency, cn } from '@/lib/utils';
+import { formatCurrency } from '@/lib/utils';
 import PageHeader from '@/components/shared/PageHeader';
 import EmptyState from '@/components/shared/EmptyState';
 
@@ -40,9 +40,19 @@ function getDateRange(period: Period) {
 }
 
 const CHART_COLORS = [
-  '#ef4444', '#f97316', '#eab308', '#84cc16', '#22c55e',
-  '#14b8a6', '#06b6d4', '#3b82f6', '#8b5cf6', '#a855f7',
-  '#ec4899', '#f43f5e', '#64748b',
+  'hsl(0 0% 85%)',
+  'hsl(0 0% 70%)',
+  'hsl(0 0% 55%)',
+  'hsl(0 0% 45%)',
+  'hsl(0 0% 35%)',
+  'hsl(0 0% 65%)',
+  'hsl(0 0% 50%)',
+  'hsl(0 0% 40%)',
+  'hsl(0 0% 75%)',
+  'hsl(0 0% 60%)',
+  'hsl(0 0% 30%)',
+  'hsl(0 0% 80%)',
+  'hsl(0 0% 25%)',
 ];
 
 export default function Analytics() {
@@ -57,15 +67,14 @@ export default function Analytics() {
   const { income, expense, categoryBreakdown } = useMemo(() => {
     let inc = 0;
     let exp = 0;
-    const catMap = new Map<string, { name: string; color: string; total: number }>();
+    const catMap = new Map<string, { name: string; total: number }>();
 
     for (const tx of transactions) {
       if (tx.type === 'income') inc += Number(tx.amount);
       if (tx.type === 'expense') {
         exp += Number(tx.amount);
         const catName = tx.category?.name || 'Uncategorized';
-        const catColor = tx.category?.color || '#64748b';
-        const existing = catMap.get(catName) || { name: catName, color: catColor, total: 0 };
+        const existing = catMap.get(catName) || { name: catName, total: 0 };
         existing.total += Number(tx.amount);
         catMap.set(catName, existing);
       }
@@ -76,7 +85,7 @@ export default function Analytics() {
     const breakdown = sorted.map((c, i) => ({
       ...c,
       percentage: total > 0 ? Math.round((c.total / total) * 100) : 0,
-      color: c.color || CHART_COLORS[i % CHART_COLORS.length],
+      color: CHART_COLORS[i % CHART_COLORS.length],
     }));
 
     return { income: inc, expense: exp, categoryBreakdown: breakdown };
@@ -107,10 +116,10 @@ export default function Analytics() {
         <Card>
           <CardContent className="p-5">
             <div className="flex items-center gap-2 text-muted-foreground">
-              <TrendingUp className="h-4 w-4 text-green-600" />
+              <TrendingUp className="h-4 w-4 text-emerald-400" />
               <span className="text-sm">Total Income</span>
             </div>
-            <p className="mt-1 text-2xl font-bold text-green-600 dark:text-green-400 tabular-nums">
+            <p className="mt-1 text-2xl font-bold text-emerald-400 tabular-nums">
               {formatCurrency(income)}
             </p>
           </CardContent>
@@ -118,10 +127,10 @@ export default function Analytics() {
         <Card>
           <CardContent className="p-5">
             <div className="flex items-center gap-2 text-muted-foreground">
-              <TrendingDown className="h-4 w-4 text-red-600" />
+              <TrendingDown className="h-4 w-4 text-red-400" />
               <span className="text-sm">Total Expenses</span>
             </div>
-            <p className="mt-1 text-2xl font-bold text-red-600 dark:text-red-400 tabular-nums">
+            <p className="mt-1 text-2xl font-bold text-red-400 tabular-nums">
               {formatCurrency(expense)}
             </p>
           </CardContent>
@@ -132,7 +141,6 @@ export default function Analytics() {
         <EmptyState icon={BarChart3} title="No data for this period" description="Start tracking your expenses to see analytics here." />
       ) : (
         <div className="grid gap-6 lg:grid-cols-2">
-          {/* Income vs Expense Bar */}
           <Card>
             <CardHeader className="pb-2"><CardTitle className="text-base">Income vs Expenses</CardTitle></CardHeader>
             <CardContent>
@@ -140,17 +148,31 @@ export default function Analytics() {
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={[{ name: 'Period', income, expense }]} barGap={8}>
                     <XAxis dataKey="name" tick={false} axisLine={false} />
-                    <YAxis tickFormatter={(v) => formatCurrency(v)} width={80} fontSize={12} axisLine={false} tickLine={false} />
-                    <Tooltip formatter={(v: number) => formatCurrency(v)} />
-                    <Bar dataKey="income" fill="#22c55e" radius={[6, 6, 0, 0]} name="Income" />
-                    <Bar dataKey="expense" fill="#ef4444" radius={[6, 6, 0, 0]} name="Expenses" />
+                    <YAxis
+                      tickFormatter={(v) => formatCurrency(v)}
+                      width={80}
+                      fontSize={12}
+                      axisLine={false}
+                      tickLine={false}
+                      tick={{ fill: 'hsl(0 0% 55%)' }}
+                    />
+                    <Tooltip
+                      formatter={(v: number) => formatCurrency(v)}
+                      contentStyle={{
+                        background: 'hsl(0 0% 7%)',
+                        border: '1px solid hsl(0 0% 14%)',
+                        borderRadius: '0.5rem',
+                        color: 'hsl(0 0% 95%)',
+                      }}
+                    />
+                    <Bar dataKey="income" fill="hsl(0 0% 85%)" radius={[6, 6, 0, 0]} name="Income" />
+                    <Bar dataKey="expense" fill="hsl(0 0% 45%)" radius={[6, 6, 0, 0]} name="Expenses" />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
             </CardContent>
           </Card>
 
-          {/* Category Breakdown Pie */}
           <Card>
             <CardHeader className="pb-2"><CardTitle className="text-base">Spending by Category</CardTitle></CardHeader>
             <CardContent>
@@ -170,12 +192,22 @@ export default function Analytics() {
                           innerRadius={50}
                           outerRadius={80}
                           paddingAngle={2}
+                          stroke="hsl(0 0% 7%)"
+                          strokeWidth={2}
                         >
                           {categoryBreakdown.map((entry, i) => (
                             <Cell key={i} fill={entry.color} />
                           ))}
                         </Pie>
-                        <Tooltip formatter={(v: number) => formatCurrency(v)} />
+                        <Tooltip
+                          formatter={(v: number) => formatCurrency(v)}
+                          contentStyle={{
+                            background: 'hsl(0 0% 7%)',
+                            border: '1px solid hsl(0 0% 14%)',
+                            borderRadius: '0.5rem',
+                            color: 'hsl(0 0% 95%)',
+                          }}
+                        />
                       </PieChart>
                     </ResponsiveContainer>
                   </div>

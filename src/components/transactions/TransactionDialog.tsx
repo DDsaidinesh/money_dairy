@@ -47,9 +47,9 @@ interface TransactionDialogProps {
 }
 
 const typeOptions: { value: TransactionType; label: string; icon: typeof ArrowDownLeft; color: string }[] = [
-  { value: 'expense', label: 'Expense', icon: ArrowUpRight, color: 'text-red-500 border-red-500 bg-red-50 dark:bg-red-950' },
-  { value: 'income', label: 'Income', icon: ArrowDownLeft, color: 'text-green-500 border-green-500 bg-green-50 dark:bg-green-950' },
-  { value: 'transfer', label: 'Transfer', icon: ArrowLeftRight, color: 'text-blue-500 border-blue-500 bg-blue-50 dark:bg-blue-950' },
+  { value: 'expense', label: 'Expense', icon: ArrowUpRight, color: 'text-red-400 border-red-400/40 bg-red-500/10' },
+  { value: 'income', label: 'Income', icon: ArrowDownLeft, color: 'text-emerald-400 border-emerald-400/40 bg-emerald-500/10' },
+  { value: 'transfer', label: 'Transfer', icon: ArrowLeftRight, color: 'text-foreground border-foreground/30 bg-foreground/5' },
 ];
 
 export default function TransactionDialog({ open, onOpenChange, editTransaction }: TransactionDialogProps) {

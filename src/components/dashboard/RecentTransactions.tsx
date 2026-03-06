@@ -1,11 +1,10 @@
 import { useNavigate } from 'react-router-dom';
-import { ArrowUpRight, ArrowDownLeft, ArrowLeftRight, ChevronRight } from 'lucide-react';
+import { ArrowUpRight, ArrowDownLeft, ArrowLeftRight, ChevronRight, Receipt } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { formatCurrency, formatDate, cn } from '@/lib/utils';
 import type { Transaction } from '@/types';
 import EmptyState from '@/components/shared/EmptyState';
-import { Receipt } from 'lucide-react';
 
 interface RecentTransactionsProps {
   transactions: Transaction[];
@@ -13,9 +12,9 @@ interface RecentTransactionsProps {
 }
 
 const typeConfig = {
-  income: { icon: ArrowDownLeft, color: 'text-green-600 dark:text-green-400', bg: 'bg-green-100 dark:bg-green-950', sign: '+' },
-  expense: { icon: ArrowUpRight, color: 'text-red-600 dark:text-red-400', bg: 'bg-red-100 dark:bg-red-950', sign: '-' },
-  transfer: { icon: ArrowLeftRight, color: 'text-blue-600 dark:text-blue-400', bg: 'bg-blue-100 dark:bg-blue-950', sign: '' },
+  income: { icon: ArrowDownLeft, color: 'text-emerald-400', bg: 'bg-emerald-500/10', sign: '+' },
+  expense: { icon: ArrowUpRight, color: 'text-red-400', bg: 'bg-red-500/10', sign: '-' },
+  transfer: { icon: ArrowLeftRight, color: 'text-foreground/60', bg: 'bg-foreground/5', sign: '' },
 };
 
 export default function RecentTransactions({ transactions, onAddClick }: RecentTransactionsProps) {
@@ -41,7 +40,7 @@ export default function RecentTransactions({ transactions, onAddClick }: RecentT
             />
           </div>
         ) : (
-          <div className="divide-y">
+          <div className="divide-y divide-border/50">
             {transactions.map((tx) => {
               const config = typeConfig[tx.type];
               const Icon = config.icon;

@@ -24,7 +24,7 @@ export default function AccountsList({ accounts }: AccountsListProps) {
         </Button>
       </CardHeader>
       <CardContent className="p-0">
-        <div className="divide-y">
+        <div className="divide-y divide-border/50">
           {accounts.map((acc) => {
             const meta = ACCOUNT_TYPE_META[acc.type] || ACCOUNT_TYPE_META.other;
             return (
@@ -40,13 +40,13 @@ export default function AccountsList({ accounts }: AccountsListProps) {
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5">
                     <p className="truncate text-sm font-medium">{acc.name}</p>
-                    {acc.is_default && <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />}
+                    {acc.is_default && <Star className="h-3 w-3 fill-foreground/50 text-foreground/50" />}
                   </div>
                   <p className="text-xs text-muted-foreground">{meta.label}</p>
                 </div>
                 <span className={cn(
                   'text-sm font-semibold tabular-nums',
-                  Number(acc.balance) >= 0 ? 'text-foreground' : 'text-red-600 dark:text-red-400'
+                  Number(acc.balance) >= 0 ? 'text-foreground' : 'text-red-400'
                 )}>
                   {formatCurrency(Number(acc.balance))}
                 </span>

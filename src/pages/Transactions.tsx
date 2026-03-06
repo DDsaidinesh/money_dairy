@@ -27,9 +27,9 @@ import EmptyState from '@/components/shared/EmptyState';
 import type { Transaction, TransactionType } from '@/types';
 
 const typeConfig = {
-  income: { icon: ArrowDownLeft, color: 'text-green-600 dark:text-green-400', bg: 'bg-green-100 dark:bg-green-950', sign: '+' },
-  expense: { icon: ArrowUpRight, color: 'text-red-600 dark:text-red-400', bg: 'bg-red-100 dark:bg-red-950', sign: '-' },
-  transfer: { icon: ArrowLeftRight, color: 'text-blue-600 dark:text-blue-400', bg: 'bg-blue-100 dark:bg-blue-950', sign: '' },
+  income: { icon: ArrowDownLeft, color: 'text-emerald-400', bg: 'bg-emerald-500/10', sign: '+' },
+  expense: { icon: ArrowUpRight, color: 'text-red-400', bg: 'bg-red-500/10', sign: '-' },
+  transfer: { icon: ArrowLeftRight, color: 'text-foreground/60', bg: 'bg-foreground/5', sign: '' },
 };
 
 export default function Transactions() {
@@ -151,7 +151,7 @@ export default function Transactions() {
                 {formatDateGroupKey(dateKey)}
               </h3>
               <Card>
-                <CardContent className="p-0 divide-y">
+                <CardContent className="p-0 divide-y divide-border/50">
                   {txs.map((tx) => {
                     const config = typeConfig[tx.type];
                     const Icon = config.icon;

@@ -15,7 +15,7 @@ const tabs = [
 
 export default function MobileNav({ onAddClick }: MobileNavProps) {
   return (
-    <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 h-16 border-t bg-card/95 backdrop-blur-sm safe-bottom">
+    <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 h-16 border-t border-border/50 bg-background/90 backdrop-blur-lg safe-bottom">
       <div className="grid h-full grid-cols-5 items-center">
         {tabs.slice(0, 2).map((tab) => (
           <NavLink
@@ -23,8 +23,8 @@ export default function MobileNav({ onAddClick }: MobileNavProps) {
             to={tab.to}
             className={({ isActive }) =>
               cn(
-                'flex flex-col items-center justify-center gap-0.5 text-[10px]',
-                isActive ? 'text-primary' : 'text-muted-foreground'
+                'flex flex-col items-center justify-center gap-0.5 text-[10px] transition-colors',
+                isActive ? 'text-foreground' : 'text-muted-foreground'
               )
             }
           >
@@ -36,7 +36,7 @@ export default function MobileNav({ onAddClick }: MobileNavProps) {
         <div className="flex items-center justify-center">
           <button
             onClick={onAddClick}
-            className="flex h-12 w-12 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg active:scale-95 transition-transform"
+            className="flex h-12 w-12 items-center justify-center rounded-full bg-foreground text-background shadow-lg active:scale-95 transition-transform"
           >
             <Plus className="h-6 w-6" />
           </button>
@@ -48,8 +48,8 @@ export default function MobileNav({ onAddClick }: MobileNavProps) {
             to={tab.to}
             className={({ isActive }) =>
               cn(
-                'flex flex-col items-center justify-center gap-0.5 text-[10px]',
-                isActive ? 'text-primary' : 'text-muted-foreground'
+                'flex flex-col items-center justify-center gap-0.5 text-[10px] transition-colors',
+                isActive ? 'text-foreground' : 'text-muted-foreground'
               )
             }
           >
